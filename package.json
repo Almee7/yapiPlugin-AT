@@ -1,6 +1,6 @@
 {
   "name": "yapi-plugin-autotest-copy",
-  "version": "1.0.0",                  
+  "version": "1.1.0",                  
   "description": "YAPI 自动化测试插件，支持设置测试计划、查看历史结果、自定义通知。",
   "main": "index.js",                  
   "scripts": {
