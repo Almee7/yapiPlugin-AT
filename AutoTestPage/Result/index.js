@@ -61,6 +61,7 @@ export default class Result extends Component {
 
   render() {
     const { results } = this.state;
+
     const filteredResults = results.filter(item => Array.isArray(item.col_names) && item.col_names.length > 0);
 
     const resultItems = filteredResults.map((item, index) => {

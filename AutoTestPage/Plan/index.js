@@ -116,14 +116,18 @@ export default class Add extends Component {
             plan_id: planMsg._id
           });
 
+          console.log("res",res)
+
           if (res.data && res.data.errcode === 0) {
-            const result = res.data.data; // 后端返回保存到 DB 的结果
+
+            const result = res.data.data; // 后
+            console.log("resNew---------",res)// 端返回保存到 DB 的结果
             message.success("执行一次计划成功，并已加入历史记录");
 
             // 打开对应的报告（这里假设历史记录报告的 url 是固定规则）
             // 例如：/api/plugin/test/report/:resultId
             if (result && result._id) {
-              window.open(`/api/open/plugin/test/result?id=${item._id}`, "_blank");
+              window.open(`/api/open/plugin/test/result?id=${result._id}`, "_blank");
             }
           } else {
             message.error("执行失败：" + (res.data.errmsg || "未知错误"));

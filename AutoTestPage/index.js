@@ -82,12 +82,24 @@ export default class Plan extends Component {
   // 删除
   async delParams(key) {
     let plans = this.state.plans;
-    let currPlans = plans.filter((val, index) => {
-      return index !== key;
-    });
-    let delPlan = plans.find((val, index) => index === key);
+    let currPlans = plans.filter((val, index) => index !== key);
+    let delPlan = plans[key];
+
+    // 情况 1：删完后没有计划了
+    if (currPlans.length === 0) {
+      if (delPlan._id) {
+        await axios.delete(`/api/plugin/test/plan/del?id=${delPlan._id}&project_id=${this.props.projectMsg._id}`);
+      }
+      this.setState({
+        plans: [],
+        currPlan: null
+      });
+      return;
+    }
+
+    // 情况 2：正常删除剩余项
     if (delPlan._id) {
-      let result =await axios.delete(`/api/plugin/test/plan/del?id=${delPlan._id}&project_id=${this.props.projectMsg._id}`);
+      let result = await axios.delete(`/api/plugin/test/plan/del?id=${delPlan._id}&project_id=${this.props.projectMsg._id}`);
       if (result.data.errcode === 0) {
         this.handleClick(0, currPlans[0], currPlans);
       } else {

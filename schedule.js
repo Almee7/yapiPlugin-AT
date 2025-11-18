@@ -36,13 +36,7 @@ class testSchedule {
         url = url.replace(/&plan_id=\d+&/, "&");
 
         // 根据触发来源修改接口路径
-        if (trigger === 'manual') {
-            // 手动执行（run_once）走 plugin/test/run_once
-            url = url.replace("/api/open/run_auto_test", "/api/open/plugin/test/run_once");
-        } else {
-            // 定时执行走 plugin/test/run
-            url = url.replace("/api/open/run_auto_test", "/api/open/plugin/test/run");
-        }
+        url = url.replace("/api/open/run_auto_test", "/api/open/plugin/test/run");
 
         // 确保带上 plan_id 参数
         if (url.indexOf('?') === -1) {
@@ -59,59 +53,88 @@ class testSchedule {
      * opts.trigger: 'schedule' | 'manual'
      */
     // 核心执行逻辑（支持手动/定时/重试）
-    async handlerPlan(planId, plan, retry = 0, opts = { allowRetryScheduling: true, trigger: 'schedule' }) {
+    async handlerPlan(planId, plan, retry = 0, opts = { allowRetryScheduling: true, trigger: 'schedule', ctx: null }) {
         const url = this._buildUrl(plan, planId, opts.trigger);
 
         try {
             const result = await axios.get(url);
-            const data = result.data || { message: {} };
+            const reportsResult = result.data || { message: {} };
 
             // 写动态日志
-            this.saveTestLog(plan.plan_name, data.message.msg, plan.uid, plan.project_id);
+            this.saveTestLog(plan.plan_name, reportsResult.message.msg, plan.uid, plan.project_id);
 
-            // 保存执行结果
-            const newResult = {
+            // 公共字段构建（手动 / 定时都会用到）
+            const ctx = opts.ctx || {};
+            const projectId = plan.project_id;
+            const curEnvList = plan.env || [];
+            const testColNames = plan.col_names || [];
+            const testUrl = ctx.href || '';
+            const uid = plan.uid || this.getUid();
+
+            const testData = {
+                project_id: projectId,
                 plan_id: planId,
-                project_id: plan.project_id,
-                plan_name: plan.plan_name,
-                uid: plan.uid,
-                create_time: Date.now(),
-                total: data.message.total || 0,
-                successNum: data.message.successNum || 0,
-                failedNum: data.message.failedNum || 0,
-                message: data.message,
-                trigger: opts.trigger || 'schedule'
+                uid,
+                col_names: testColNames,
+                env: curEnvList,
+                test_url: testUrl,
+                status: reportsResult.message.failedNum === 0 ? "成功" : "失败",
+                data: reportsResult
             };
 
-            const saved = await this.resultModel.save(newResult);
+            // ===== 手动执行：不入库，但返回完整 testData =====
+            if (opts.trigger === 'manual') {
+                yapi.commons.log(
+                    `计划【${plan.plan_name}】手动执行完成，成功 ${reportsResult.message.successNum}，失败 ${reportsResult.message.failedNum}`
+                );
 
-            // 控制结果记录数量
+                // 查询数据库中该计划的历史结果，取最后一条
+                let lastRecord = null;
+                try {
+                    const results = await this.testResultModel.findByPlan(planId) || [];
+                    if (Array.isArray(results) && results.length > 0) {
+                        lastRecord = results[results.length - 1]; // 取最后一条
+                    }
+                } catch (err) {
+                    yapi.commons.log(`查询计划 ${planId} 的历史结果出错：${err.message || err}`, 'error');
+                }
+
+                return {
+                    ...(lastRecord ? { _id: lastRecord._id } : {}),
+                    ...testData,
+                    trigger: 'manual'
+                };
+            }
+
+            // ===== 定时任务执行逻辑（入库） =====
+            const saveResult = await this.testResultModel.save(testData);
+
+            // 控制结果数量
             if (plan.plan_result_size >= 0) {
-                const results = await this.resultModel.findByPlan(planId);
+                const results = await this.testResultModel.findByPlan(planId);
                 const ids = results.map(val => val._id).slice(plan.plan_result_size);
                 if (ids && ids.length) {
-                    await this.resultModel.deleteByIds(ids);
+                    await this.testResultModel.deleteByIds(ids);
                 }
             }
 
-            // ===== 这里开始用 if / else 区分执行场景 =====
-            if (opts.trigger === 'manual') {
-                // 手动执行逻辑（run_once）
-                yapi.commons.log(`计划【${plan.plan_name}】手动执行完成，成功 ${data.message.successNum}，失败 ${data.message.failedNum}`);
-                // 不走重试逻辑
-            } else if (opts.trigger === 'schedule' && opts.allowRetryScheduling) {
-                // 定时任务逻辑
+            // ===== 自动重试逻辑（仅定时任务） =====
+            if (opts.trigger === 'schedule' && opts.allowRetryScheduling) {
                 const job = jobMap.get(planId);
 
-                // 有失败则判断是否需要重试
-                if (data.message.failedNum !== 0 && plan.plan_fail_retries && plan.plan_fail_retries > retry) {
+                if (
+                    reportsResult.message.failedNum !== 0 &&
+                    plan.plan_fail_retries &&
+                    plan.plan_fail_retries > retry
+                ) {
+                    // 有失败则进入重试
                     job && job.cancel();
 
                     const retryDate = new Date();
                     retryDate.setSeconds(retryDate.getSeconds() + 60 * (retry + 1));
 
                     const retryItem = schedule.scheduleJob(retryDate, async () => {
-                        yapi.commons.log(`项目ID为【${plan.project_id}】下计划【${plan.plan_name}】失败后自动重试第${retry + 1}次`);
+                        yapi.commons.log(`项目【${plan.project_id}】下计划【${plan.plan_name}】失败后自动重试第${retry + 1}次`);
                         this.deleteRetryJob(planId);
                         await this.handlerPlan(planId, plan, retry + 1, opts);
                     });
@@ -123,12 +146,16 @@ class testSchedule {
                 }
             }
 
-            return saved;
+            return saveResult;
         } catch (e) {
-            yapi.commons.log(`项目ID为【${plan.project_id}】下测试计划【${plan.plan_name}】执行失败，错误：${e.message || e}`);
+            yapi.commons.log(
+                `项目【${plan.project_id}】下测试计划【${plan.plan_name}】执行失败，错误：${e.message || e}`
+            );
             throw e;
         }
     }
+
+
 
     /**
      * 添加一个测试计划（保持大部分原样）

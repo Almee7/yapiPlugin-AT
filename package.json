@@ -1,21 +1,21 @@
 {
-  "name": "yapi-plugin-auto-test",
-  "version": "1.0.1",
-  "description": "YAPI自动化测试插件，支持在YAPI设置测试计划，查看历史测试结果，自定义通知。",
-  "main": "index.js",
+  "name": "yapi-plugin-autotest-copy",
+  "version": "1.0.0",                  
+  "description": "YAPI 自动化测试插件，支持设置测试计划、查看历史结果、自定义通知。",
+  "main": "index.js",                  
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
-    "url": "git@github.com:congqiu/yapi-plugin-auto-test.git"
+    "url": "git+https://github.com/Almee7/yapiPlugin-AT.git"
   },
   "bugs": {
-    "url": "https://github.com/congqiu/yapi-plugin-auto-test/issues"
+    "url": "https://github.com/Almee7/yapiPlugin-AT/issues"
   },
-  "homepage": "https://github.com/congqiu/yapi-plugin-auto-test#readme",
-  "keywords": ["YAPI", "auto test", "test", "yapi-plugin"],
-  "author": "congqiu",
+  "homepage": "https://github.com/Almee7/yapiPlugin-AT#readme",
+  "keywords": ["YAPI", "auto test", "yapi-plugin"],
+  "author": "Almee7",
   "license": "ISC",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"

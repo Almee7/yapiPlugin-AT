@@ -50,7 +50,6 @@ class testResultController extends openController {
     if (!this.$tokenAuth) {
       return (ctx.body = yapi.commons.resReturn(null, 40022, 'token 验证失败'));
     }
-
     const projectId = ctx.params.project_id;
     const planId = ctx.params.plan_id || -1;
     const startTime = new Date().getTime();
@@ -164,6 +163,7 @@ class testResultController extends openController {
         status: reportsResult.message.failedNum === 0 ? "成功" : "失败",
         data: reportsResult
       };
+
       let saveResult = await this.testResultModel.save(testData);
 
       if (planId && planId !== -1) {
